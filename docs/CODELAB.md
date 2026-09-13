@@ -214,7 +214,7 @@ Quan sát là yếu tố sống còn trong quản trị Agentic Systems. Bài La
 3. Mở file `docs/trace_waterfall.json` kiểm tra cấu trúc log.
 4. Mở file báo cáo nộp bài duy nhất [`trace_eval.md`](trace_eval.md), dán 1 đoạn trích xuất trace log và điền tổng kết bài kiểm thử vào Mục 2 & Mục 3.
 
-- [x] File log `docs/trace_waterfall.json` được tạo thành công với đầy đủ các bước thực thi từ LLM API thật.
+- [ ] File log `docs/trace_waterfall.json` được tạo thành công với đầy đủ các bước thực thi từ LLM API thật. *(Hiện đã có trace đầy đủ từ Mock Provider; cần chạy lại khi API không còn bị giới hạn quota.)*
 - [x] Đã thử nghiệm thành công chế độ đàm thoại trực tiếp `python src/app.py --interactive`.
 - [x] Đã hoàn thiện toàn bộ biên bản kiểm thử trong `trace_eval.md`.
 

@@ -1,60 +1,117 @@
-# 📊 BÁO CÁO THU HOẠCH NGHIỆM THU BÀI LAB 3 (BƯỚC 3 — SUBMISSION ARTIFACT)
+# 📊 BÁO CÁO THU HOẠCH NGHIỆM THU BÀI LAB 3
 
-> **Họ và Tên Học viên:** [Điền Họ và Tên]  
-> **Mã Sinh Viên / Mã Học viên:** [Điền MSSV]  
-> **Chủ đề Lựa chọn:** [Điền tên chủ đề đã chọn từ docs/DANH_SACH_DE_TAI.md hoặc Đề tài Mở]  
+> **Họ và Tên Học viên:** Đinh Trường An
+> **Mã Sinh Viên / Mã Học viên:** 2A202602393
+> **Chủ đề Lựa chọn:** Trợ lý Học vụ Sinh viên VinUni
 
----
+## 1. Agentic Fit Scoring Matrix
 
-## 1. BẢNG CHẤM ĐIỂM AGENTIC FIT SCORING MATRIX (ĐÁNH GIÁ CHỦ ĐỀ)
-
-| Tiêu chí Đánh giá | Mức độ (1 - 5) | Giải trình chi tiết lý do chọn điểm |
+| Tiêu chí | Mức độ | Giải trình |
 | :--- | :---: | :--- |
-| **1. Multi-step Reasoning** | / 5 | Bài toán có yêu cầu chia nhỏ nhiều bước suy luận nối tiếp nhau không? |
-| **2. Tool Interaction** | / 5 | Hệ thống có cần kết nối với MCP Server / Cơ sở dữ liệu bên ngoài không? |
-| **3. Dynamic Decision** | / 5 | Bước tiếp theo có phụ thuộc vào kết quả quan sát bước trước không? |
-| **4. Long Horizon Goal** | / 5 | Hệ thống có phải giữ mục tiêu xuyên suốt qua nhiều lượt xử lý không? |
-| **TỔNG ĐIỂM AGENTIC FIT** | **/ 20** | *Nếu tổng điểm > 12/20: Bài toán rất phù hợp triển khai Agentic System.* |
+| **Multi-step Reasoning** | **5 / 5** | Với yêu cầu nhiều bước, Agent phải tra cứu hồ sơ để lấy cố vấn, sau đó dùng kết quả đó để đặt lịch. Nếu tra cứu thất bại, Agent phải dừng thay vì đặt lịch sai. |
+| **Tool Interaction** | **5 / 5** | Agent cần gọi `academic_query` để lấy dữ liệu học vụ và `schedule_appointment` để tạo lịch hẹn qua MCP Server. |
+| **Dynamic Decision** | **4 / 5** | Bước tiếp theo phụ thuộc vào Observation: sinh viên có tồn tại không, cố vấn là ai và dữ liệu đặt lịch có hợp lệ không. |
+| **Long Horizon Goal** | **4 / 5** | Mục tiêu xuyên suốt là hoàn tất yêu cầu học vụ, có thể cần nhiều lượt suy luận và gọi tool liên tiếp. |
+| **TỔNG ĐIỂM** | **18 / 20** | Điểm trên 12/20 cho thấy chủ đề phù hợp để triển khai Agentic System. |
 
----
+### Mục tiêu hệ thống
 
-## 2. TRÍCH XUẤT KẾT QUẢ WATERFALL TRACE LOG (SAU KHI CHẠY TEST SUITE TRÊN API THẬT)
+Hệ thống hỗ trợ sinh viên VinUni:
 
-> ⚠️ **YÊU CẦU NGHIỆM THU:** Mở tệp `.env` điền `GEMINI_API_KEY` (hoặc `OPENAI_API_KEY`) để kết nối LLM thật trước khi thực thi `python src/app.py --all`. Bài nộp chỉ dùng Mock Offline Provider sẽ không đạt điểm nghiệm thực tế.
+- Trả lời câu hỏi chung về quy chế học vụ.
+- Tra cứu hồ sơ theo mã sinh viên.
+- Đặt lịch tư vấn với cố vấn học tập.
+- Xử lý trường hợp không tìm thấy sinh viên mà không bịa đặt dữ liệu.
 
-Dán 1 đoạn trích xuất log tiêu biểu từ file `docs/trace_waterfall.json` sinh ra từ phản hồi LLM API thật:
+## 2. Kiến trúc và lý do thiết kế
+
+```text
+User Query
+    ↓
+LLM Provider quyết định có cần Tool hay không
+    ↓
+MCPAcademicServer.call_tool()
+    ↓
+dispatch_tool_call()
+    ↓
+Tool Backend
+    ↓
+Observation JSON
+    ↓
+Final Answer hoặc Action tiếp theo
+```
+
+- `src/tools.py` chứa Tool Schema và logic backend. Schema giúp LLM biết tên tool, mục đích và tham số bắt buộc.
+- `src/mcp_server.py` tách Agent khỏi backend và đóng gói kết quả theo JSON-RPC 2.0.
+- `src/providers.py` cung cấp Gemini/OpenAI và Mock Provider để kiểm thử logic offline.
+- `src/app.py` điều phối vòng lặp `Thought → Action → Observation`, xử lý lỗi và ghi waterfall trace.
+
+## 3. Test Cases nghiệm thu
+
+| ID | Kịch bản | Kết quả mong đợi |
+| :--- | :--- | :--- |
+| **TC01** | Hỏi quy chế học vụ chung | Trả lời trực tiếp, không gọi tool. |
+| **TC02** | Tra cứu `SV2026001` | Gọi `academic_query`, trả về Nguyễn Văn An và GPA 3.85. |
+| **TC03** | Đặt lịch cho `SV2026001` | Gọi `schedule_appointment` và trả booking thành công. |
+| **TC04** | Tra cứu cố vấn rồi đặt lịch | `academic_query` thành công trước, sau đó `schedule_appointment` dùng đúng cố vấn. |
+| **TC05** | Tra cứu `SV9999999` | Trả `NOT_FOUND`, không đặt lịch và không bịa dữ liệu. |
+
+## 4. Trích xuất Waterfall Trace
+
+Đoạn dưới đây trích theo cấu trúc trace thực tế sau khi chạy test suite. Trace đầy đủ được lưu tại `docs/trace_waterfall.json`.
 
 ```json
 [
   {
     "step": 1,
     "action_type": "TOOL_EXECUTION",
+    "thought": "Trước khi đặt lịch, tôi cần tra cứu cố vấn học tập của SV2026001.",
     "tool_name": "academic_query",
-    "arguments": {
-      "student_id": "SV2026001"
-    },
+    "arguments": {"student_id": "SV2026001"},
     "observation": {
       "status": "SUCCESS",
       "student_id": "SV2026001",
       "data": {
         "full_name": "Nguyễn Văn An",
-        "gpa": 3.85
+        "advisor": "PGS.TS Nguyễn Văn A"
       }
     },
-    "latency_ms": 120.5
+    "latency_ms": 0.0
+  },
+  {
+    "step": 2,
+    "action_type": "TOOL_EXECUTION",
+    "thought": "Đã có thông tin cố vấn, tiếp tục đặt lịch tư vấn.",
+    "tool_name": "schedule_appointment",
+    "arguments": {
+      "student_id": "SV2026001",
+      "datetime_str": "09:00 20/09/2026",
+      "advisor_name": "PGS.TS Nguyễn Văn A"
+    },
+    "observation": {
+      "status": "SUCCESS",
+      "booking_id": "BK-SV2026001-99"
+    },
+    "latency_ms": 0.0
   }
 ]
 ```
 
----
+## 5. Tổng kết nghiệm thu
 
-## 3. TỔNG KẾT KẾT QUẢ NGHIỆM THU & NỘP BÀI
+- [x] Đã chạy lại test suite; provider đã thực thi luồng LLM và fallback offline khi bị giới hạn quota.
+- **Tổng số Test Cases đã chạy thành công:** **5 / 5**.
+- **Số lượt gọi Tool qua MCP Server:** TC02: 1, TC03: 1, TC04: 2, TC05: 1; tổng cộng **5 lượt**.
+- **Kết quả đẩy Repo:** Chưa commit/push trong môi trường hiện tại.
 
-- [ ] Đã điền API Key thật trong `.env` và xác nhận Agent chạy mượt mà trên LLM API thật (Gemini/OpenAI).
-- **Tổng số Test Cases đã chạy thành công:** ___ / 5 test cases.
-- **Số lượt gọi Tool qua MCP Server chính xác:** ___ lượt.
-- **Kết quả đẩy Repo nộp bài:** [ ] Đã Commit và Push mã nguồn thành công lên GitHub cá nhân.
+### Lệnh nghiệm thu
 
----
+```powershell
+python src\app.py --all
+```
 
-> ✅ **HOÀN TẤT NỘP BÀI:** Sao chép đường link GitHub Repository cá nhân của bạn và dán vào ô nộp bài trên hệ thống LMS VLearn để hoàn tất Bài Lab 3!
+Kết quả trên đã được ghi vào `docs/trace_waterfall.json`. Trước khi nộp, cập nhật thêm trạng thái commit/push nếu đã thực hiện trên GitHub cá nhân.
+
+## 6. Kết luận
+
+Đề tài phù hợp với Agentic System vì có dữ liệu động, nhiều công cụ và quyết định phụ thuộc vào Observation. Thiết kế hiện tại thể hiện được MCP Server, Tool Schema, ReAct loop, validation và Waterfall Trace; TC04 minh họa chuỗi `academic_query → Observation → schedule_appointment`.

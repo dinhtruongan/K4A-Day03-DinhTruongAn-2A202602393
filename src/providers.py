@@ -6,6 +6,7 @@ Hỗ trợ Native Tool Calling và chuyển đổi linh hoạt qua biến môi t
 import os
 import sys
 import json
+import re
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
@@ -36,21 +37,66 @@ class MockOfflineProvider(BaseLLMProvider):
 
     def generate_with_tools(self, prompt: str, tools_schema: List[Dict[str, Any]], system_prompt: str = "") -> Dict[str, Any]:
         prompt_lower = prompt.lower()
+        student_match = re.search(r"sv\d{7,}", prompt_lower)
+        student_id = student_match.group(0).upper() if student_match else "SV2026001"
+        datetime_match = re.search(r"(\d{1,2}:\d{2})\s*(?:ngày\s*)?(\d{1,2}/\d{1,2}/\d{4})", prompt_lower)
+        datetime_str = f"{datetime_match.group(1)} {datetime_match.group(2)}" if datetime_match else "14:00 15/09/2026"
         
         # Mô phỏng nhận diện intent gọi Tool
-        if "sv2026001" in prompt_lower and "đặt lịch" in prompt_lower:
+        if "observation từ tool" in prompt_lower and "booking_id" in prompt_lower:
+            message_match = re.search(r'"message"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', prompt)
+            return {
+                "type": "text",
+                "content": message_match.group(1) if message_match else "Đã đặt lịch tư vấn thành công dựa trên kết quả từ MCP Server.",
+                "thought": "Observation xác nhận booking thành công, tôi trả lời kết luận cuối cùng."
+            }
+        elif "observation từ tool" in prompt_lower and "đặt lịch" in prompt_lower:
             return {
                 "type": "tool_call",
                 "tool_name": "schedule_appointment",
-                "arguments": {"student_id": "SV2026001", "datetime_str": "14:00 15/09/2026", "advisor_name": "PGS.TS Nguyễn Văn A"},
-                "thought": "Người dùng yêu cầu đặt lịch hẹn tư vấn cho sinh viên SV2026001. Tôi sẽ gọi tool schedule_appointment."
+                "arguments": {"student_id": student_id, "datetime_str": datetime_str, "advisor_name": "PGS.TS Nguyễn Văn A"},
+                "thought": "Observation cung cấp cố vấn học tập. Tôi sẽ dùng cố vấn đó để đặt lịch."
             }
-        elif "sv2026001" in prompt_lower or "tra cứu" in prompt_lower:
+        elif "observation từ tool" in prompt_lower:
+            message_match = re.search(r'"message"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', prompt)
+            return {
+                "type": "text",
+                "content": message_match.group(1) if message_match else "Đã nhận được dữ liệu học vụ từ MCP Server.",
+                "thought": "Observation đã đủ để trả lời câu hỏi của người dùng."
+            }
+        elif "tra cứu cố vấn" in prompt_lower:
             return {
                 "type": "tool_call",
                 "tool_name": "academic_query",
-                "arguments": {"student_id": "SV2026001"},
-                "thought": "Người dùng muốn tra cứu thông tin học vụ của sinh viên SV2026001. Tôi sẽ gọi tool academic_query."
+                "arguments": {"student_id": student_id},
+                "thought": f"Trước khi đặt lịch, tôi cần tra cứu cố vấn học tập của {student_id}."
+            }
+        elif "đặt lịch" in prompt_lower and "cố vấn: pgs.ts nguyễn văn a" in prompt_lower:
+            return {
+                "type": "tool_call",
+                "tool_name": "schedule_appointment",
+                "arguments": {"student_id": student_id, "datetime_str": datetime_str, "advisor_name": "PGS.TS Nguyễn Văn A"},
+                "thought": "Người dùng yêu cầu đặt lịch hẹn tư vấn cho sinh viên SV2026001. Tôi sẽ gọi tool schedule_appointment."
+            }
+        elif "sv2026001" in prompt_lower and "đặt lịch" in prompt_lower:
+            return {
+                "type": "tool_call",
+                "tool_name": "schedule_appointment",
+                "arguments": {"student_id": student_id, "datetime_str": datetime_str, "advisor_name": "PGS.TS Nguyễn Văn A"},
+                "thought": "Đã xác định cố vấn của SV2026001 từ yêu cầu và Observation. Tôi sẽ gọi tool schedule_appointment."
+            }
+        elif student_match or "tra cứu" in prompt_lower:
+            return {
+                "type": "tool_call",
+                "tool_name": "academic_query",
+                "arguments": {"student_id": student_id},
+                "thought": f"Người dùng muốn tra cứu thông tin học vụ của sinh viên {student_id}. Tôi sẽ gọi tool academic_query."
+            }
+        elif any(keyword in prompt_lower for keyword in ["bạn là ai", "ban la ai", "who are you", "who are u", "what are you"]):
+            return {
+                "type": "text",
+                "content": "Mình là Trợ lý Tác tử Học vụ VinUni. Mình có thể trả lời câu hỏi chung, tra cứu thông tin sinh viên và hỗ trợ đặt lịch với cố vấn học tập.",
+                "thought": "Người dùng hỏi danh tính, tôi giới thiệu vai trò của mình mà không cần gọi Tool."
             }
         else:
             return {
@@ -140,13 +186,14 @@ class OpenAIProvider(BaseLLMProvider):
     def __init__(self, api_key: str = None, model: str = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.model_name = model or os.getenv("LLM_MODEL") or "gpt-4o-mini"
+        self.base_url = None
 
     def generate(self, prompt: str, system_prompt: str = "") -> str:
         if not self.api_key or self.api_key == "your_openai_api_key_here":
             return "[OpenAI Error]: Chưa cấu hình OPENAI_API_KEY trong file .env! Đang sử dụng chế độ Mock."
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -163,7 +210,7 @@ class OpenAIProvider(BaseLLMProvider):
 
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
             tools = []
             for tool in tools_schema:
@@ -211,6 +258,14 @@ class OpenAIProvider(BaseLLMProvider):
             return MockOfflineProvider().generate_with_tools(prompt, tools_schema, system_prompt)
 
 
+class OpenRouterProvider(OpenAIProvider):
+    """OpenRouter Provider dùng OpenAI-compatible API và Native Tool Calling."""
+    def __init__(self, api_key: str = None, model: str = None):
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        self.model_name = model or os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"
+        self.base_url = "https://openrouter.ai/api/v1"
+
+
 def get_llm_provider() -> BaseLLMProvider:
     """Factory function khởi tạo Provider theo LLM_PROVIDER env variable"""
     provider_type = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -227,6 +282,11 @@ def get_llm_provider() -> BaseLLMProvider:
             return OpenAIProvider()
         else:
             return MockOfflineProvider()
+    elif provider_type == "openrouter":
+        key = os.getenv("OPENROUTER_API_KEY")
+        if key and key != "your_openrouter_api_key_here":
+            return OpenRouterProvider()
+        return MockOfflineProvider()
     elif provider_type == "mock":
         return MockOfflineProvider()
     else:

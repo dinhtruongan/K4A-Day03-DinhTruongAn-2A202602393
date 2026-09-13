@@ -43,9 +43,20 @@ TOOLS_SCHEMA = [
         "parameters": {
             "type": "object",
             "properties": {
-                # TODO 1.2: Khai báo các thuộc tính tham số cho Tool tại đây...
+                "student_id": {
+                    "type": "string",
+                    "description": "Mã sinh viên cần đặt lịch (ví dụ: 'SV2026001')"
+                },
+                "datetime_str": {
+                    "type": "string",
+                    "description": "Thời gian hẹn, ví dụ '14:00 15/09/2026'"
+                },
+                "advisor_name": {
+                    "type": "string",
+                    "description": "Tên cố vấn học tập cần gặp"
+                }
             },
-            "required": [] # TODO 1.2: Khai báo danh sách các trường bắt buộc tại đây...
+            "required": ["student_id", "datetime_str", "advisor_name"]
         }
     }
 ]
@@ -92,13 +103,30 @@ def execute_academic_query(student_id: str) -> str:
 
 def execute_schedule_appointment(student_id: str, datetime_str: str, advisor_name: str = "PGS.TS Nguyễn Văn A") -> str:
     """Thực thi đặt lịch hẹn tư vấn học vụ"""
+    normalized_id = (student_id or "").strip().upper()
+    if normalized_id not in MOCK_DATABASE:
+        return json.dumps({
+            "status": "NOT_FOUND",
+            "message": f"Không thể đặt lịch: không tìm thấy sinh viên có mã '{student_id}'."
+        }, ensure_ascii=False)
+    if not (datetime_str or "").strip():
+        return json.dumps({
+            "status": "VALIDATION_ERROR",
+            "message": "Thời gian hẹn không được để trống."
+        }, ensure_ascii=False)
+    if not (advisor_name or "").strip():
+        return json.dumps({
+            "status": "VALIDATION_ERROR",
+            "message": "Tên cố vấn không được để trống."
+        }, ensure_ascii=False)
+
     return json.dumps({
         "status": "SUCCESS",
-        "booking_id": f"BK-{student_id}-99",
-        "student_id": student_id,
+        "booking_id": f"BK-{normalized_id}-99",
+        "student_id": normalized_id,
         "datetime": datetime_str,
         "advisor": advisor_name,
-        "message": f"Đặt lịch thành công cho sinh viên {student_id} với {advisor_name} vào lúc {datetime_str}."
+        "message": f"Đặt lịch thành công cho sinh viên {normalized_id} với {advisor_name} vào lúc {datetime_str}."
     }, ensure_ascii=False)
 
 
