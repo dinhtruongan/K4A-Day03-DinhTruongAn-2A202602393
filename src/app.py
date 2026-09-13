@@ -61,12 +61,40 @@ def run_baseline_chatbot(user_query: str, provider):
     print(f"🤖 Chatbot phản hồi:\n{response}")
 
 
+def is_in_academic_scope(user_query: str) -> bool:
+    """Chặn câu hỏi ngoài phạm vi trước khi gửi tới LLM hoặc Tool."""
+    query = user_query.lower()
+    allowed_keywords = [
+        "vinuni", "học vụ", "hoc vu", "quy chế", "quy che", "tín chỉ", "tin chi",
+        "gpa", "điểm", "diem", "tốt nghiệp", "tot nghiep", "sinh viên", "sinh vien",
+        "student", "sv", "tra cứu", "tra cuu", "academic", "đặt lịch", "dat lich",
+        "cố vấn", "co van", "advisor", "bạn là ai", "ban la ai", "who are", "what are",
+        "làm được gì", "lam duoc gi", "có thể làm gì", "co the lam gi", "hello", "xin chào", "xin chao"
+    ]
+    return any(keyword in query for keyword in allowed_keywords)
+
+
 def run_react_agent(user_query: str, provider, mcp_server: MCPAcademicServer) -> list:
     """
     [REACT AGENT LOOP] Thực thi vòng lặp Thought -> Action -> Observation với MCP Server
     Trả về danh sách trace log của phiên thực thi.
     """
     print(f"\n🤖 [REACT AGENT] Câu hỏi: {user_query}")
+
+    if not is_in_academic_scope(user_query):
+        message = (
+            "Mình chỉ hỗ trợ các vấn đề về học vụ VinUni, hồ sơ sinh viên "
+            "và lịch tư vấn với cố vấn. Vui lòng đặt câu hỏi trong phạm vi này."
+        )
+        print(f"🛡️ [SCOPE GUARD]: {message}")
+        return [{
+            "step": 1,
+            "query": user_query,
+            "action_type": "FINAL_ANSWER",
+            "thought": "Câu hỏi ngoài phạm vi, chặn trước khi gọi LLM hoặc Tool.",
+            "output": message,
+            "latency_ms": 0.0
+        }]
     
     step = 0
     trace_logs = []
