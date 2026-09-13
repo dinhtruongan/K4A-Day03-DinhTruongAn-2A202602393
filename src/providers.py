@@ -59,9 +59,20 @@ class MockOfflineProvider(BaseLLMProvider):
             }
         elif "observation từ tool" in prompt_lower:
             message_match = re.search(r'"message"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', prompt)
+            name_match = re.search(r'"full_name"\s*:\s*"([^"]+)"', prompt)
+            gpa_match = re.search(r'"gpa"\s*:\s*([0-9.]+)', prompt)
+            advisor_match = re.search(r'"advisor"\s*:\s*"([^"]+)"', prompt)
+            if name_match:
+                content = (
+                    f"Tra cứu thành công: {name_match.group(1)}, "
+                    f"GPA {gpa_match.group(1) if gpa_match else 'N/A'}, "
+                    f"cố vấn {advisor_match.group(1) if advisor_match else 'N/A'}."
+                )
+            else:
+                content = message_match.group(1) if message_match else "Đã nhận được dữ liệu học vụ từ MCP Server."
             return {
                 "type": "text",
-                "content": message_match.group(1) if message_match else "Đã nhận được dữ liệu học vụ từ MCP Server.",
+                "content": content,
                 "thought": "Observation đã đủ để trả lời câu hỏi của người dùng."
             }
         elif "tra cứu cố vấn" in prompt_lower:
@@ -98,11 +109,29 @@ class MockOfflineProvider(BaseLLMProvider):
                 "content": "Mình là Trợ lý Tác tử Học vụ VinUni. Mình có thể trả lời câu hỏi chung, tra cứu thông tin sinh viên và hỗ trợ đặt lịch với cố vấn học tập.",
                 "thought": "Người dùng hỏi danh tính, tôi giới thiệu vai trò của mình mà không cần gọi Tool."
             }
+        elif any(keyword in prompt_lower for keyword in ["làm được gì", "lam duoc gi", "có thể làm gì", "co the lam gi", "what can you do"]):
+            return {
+                "type": "text",
+                "content": "Mình có thể: (1) trả lời câu hỏi chung về học vụ, (2) tra cứu hồ sơ sinh viên theo mã sinh viên, (3) đặt lịch tư vấn với cố vấn học tập, và (4) xử lý trường hợp không tìm thấy dữ liệu.",
+                "thought": "Người dùng hỏi về khả năng của Agent, tôi liệt kê các chức năng mà không cần gọi Tool."
+            }
+        elif any(keyword in prompt_lower for keyword in ["xin chào", "xin chao", "hello", "hi ", "chào bạn", "chao ban"]):
+            return {
+                "type": "text",
+                "content": "Xin chào! Mình là Trợ lý Học vụ VinUni. Bạn cần hỗ trợ tra cứu sinh viên, quy chế học vụ hay đặt lịch tư vấn?",
+                "thought": "Người dùng chào hỏi, tôi phản hồi xã giao và gợi ý các chức năng hỗ trợ."
+            }
+        elif any(keyword in prompt_lower for keyword in ["quy chế", "quy che", "học vụ", "hoc vu", "tín chỉ", "tin chi", "tốt nghiệp", "tot nghiep", "gpa", "điểm", "diem", "môn học", "mon hoc"]):
+            return {
+                "type": "text",
+                "content": "Quy chế học vụ VinUni yêu cầu sinh viên tích lũy đủ tín chỉ theo chương trình đào tạo, duy trì kết quả học tập đạt yêu cầu và tuân thủ quy định đăng ký môn học. Với thông tin chính thức, bạn nên kiểm tra Sổ tay sinh viên hoặc liên hệ Phòng Đào tạo.",
+                "thought": "Câu hỏi thuộc phạm vi học vụ nhưng không cần dữ liệu cá nhân, tôi trả lời thông tin chung không gọi Tool."
+            }
         else:
             return {
                 "type": "text",
-                "content": f"[Mock Agent Response]: Xin chào! Quy chế học vụ VinUni yêu cầu sinh viên tích lũy tối thiểu 120 tín chỉ và duy trì GPA trên 2.0 để tốt nghiệp.",
-                "thought": "Câu hỏi chung về quy chế học vụ, trả lời trực tiếp không cần gọi Tool."
+                "content": "Mình là Trợ lý Học vụ VinUni và chỉ hỗ trợ các vấn đề liên quan đến học vụ, hồ sơ sinh viên và lịch tư vấn. Mình chưa thể hỗ trợ câu hỏi này; bạn có thể hỏi về quy chế, tra cứu mã sinh viên hoặc đặt lịch với cố vấn.",
+                "thought": "Câu hỏi nằm ngoài phạm vi học vụ, tôi nêu rõ giới hạn thay vì bịa đặt câu trả lời."
             }
 
 
